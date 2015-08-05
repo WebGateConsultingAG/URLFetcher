@@ -15,7 +15,6 @@
  */
 package biz.webgate.tools.urlfetcher;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 import org.apache.http.HttpEntity;
@@ -29,82 +28,75 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
 
 public class URLFetcher {
+	private static int STATUS_OK = 200;
+	private static int PIC_HEIGHT = 220;
+	private URLFetcher() {
+	}
 
 	public static PageAnalyse analyseURL(String url) throws FetcherException {
-		return analyseURL(url, 200);
+		return analyseURL(url, PIC_HEIGHT);
 	}
 
 	public static PageAnalyse analyseURL(String url, int maxPictureHeight) throws FetcherException {
 		PageAnalyse analyse = new PageAnalyse(url);
+		HttpClient httpClient = null;
 		try {
-			HttpClient httpClient = new DefaultHttpClient();
+			httpClient = new DefaultHttpClient();
 			((DefaultHttpClient) httpClient).setRedirectStrategy(new DefaultRedirectStrategy());
 			HttpGet httpGet = new HttpGet(url);
 			httpGet.addHeader("Content-Type", "text/html; charset=utf-8");
 			HttpResponse response = httpClient.execute(httpGet);
 			int statusCode = response.getStatusLine().getStatusCode();
 
-			if (statusCode == 200) {
+			if (statusCode == STATUS_OK) {
 				HttpEntity entity = response.getEntity();
-				try {
-					parseContent(maxPictureHeight, analyse, entity.getContent());
-				} catch (IllegalStateException e) {
-					throw new FetcherException(e);
-				} catch (SAXException e) {
-					throw new FetcherException(e);
-				} finally {
-					httpClient.getConnectionManager().shutdown();
-				}
+				parseContent(maxPictureHeight, analyse, entity.getContent());
 
 			} else {
 				throw new FetcherException("Response from WebSite is :" + statusCode);
 			}
-
+		} catch (IllegalStateException e) {
+			throw new FetcherException(e);
+		} catch (FetcherException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new FetcherException(e);
+		} finally {
+			if (httpClient != null) {
+				httpClient.getConnectionManager().shutdown();
+			}
 		}
 		return analyse;
 	}
 
-	public static void parseContent(int maxPictureHeight, PageAnalyse analyse, InputStream is) throws SAXNotRecognizedException, SAXNotSupportedException, SAXException, IOException {
-		Document doc;
-		DOMParser dpHTML = new DOMParser();
-		dpHTML.setProperty("http://cyberneko.org/html/properties/default-encoding", "utf-8");
-		dpHTML.parse(new InputSource(is));
-		doc = dpHTML.getDocument();
+	public static void parseContent(int maxPictureHeight, PageAnalyse analyse, InputStream is) throws FetcherException {
+		try {
+			Document doc;
+			DOMParser dpHTML = new DOMParser();
+			dpHTML.setProperty("http://cyberneko.org/html/properties/default-encoding", "utf-8");
+			dpHTML.parse(new InputSource(is));
+			doc = dpHTML.getDocument();
 
-		NodeList ndlMet = doc.getElementsByTagName("meta");
-		NodeList ndlTitle = doc.getElementsByTagName("title");
-		NodeList ndlImage = doc.getElementsByTagName("img");
+			NodeList ndlMet = doc.getElementsByTagName("meta");
+			NodeList ndlTitle = doc.getElementsByTagName("title");
+			NodeList ndlImage = doc.getElementsByTagName("img");
 
-		check4OpenGraphTags(ndlMet, analyse);
-		checkDescription(analyse, ndlMet);
-		checkTitle(analyse, ndlTitle);
-		checkImage(analyse, ndlImage, maxPictureHeight);
+			check4OpenGraphTags(ndlMet, analyse);
+			checkDescription(analyse, ndlMet);
+			checkTitle(analyse, ndlTitle);
+			checkImage(analyse, ndlImage, maxPictureHeight);
+		} catch (Exception e) {
+			throw new FetcherException(e);
+		}
 	}
 
 	public static void checkImage(PageAnalyse analyse, NodeList ndlImage, int maxPictureHeigh) {
 		for (int nCounter = 0; nCounter < ndlImage.getLength(); nCounter++) {
 			Element elCurrent = (Element) ndlImage.item(nCounter);
 			if (elCurrent.hasAttribute("src")) {
-				String strImage = elCurrent.getAttribute("src");
-				if (ndlImage.getLength() > 20 && elCurrent.hasAttribute("height")) {
-					String strHeight = elCurrent.getAttribute("height");
-					strHeight = strHeight.replace("px", "");
-					try {
-						int nHeight = Integer.parseInt(strHeight);
-						if (nHeight > maxPictureHeigh) {
-							strImage = null;
-						}
-					} catch (Exception e) {
-						// TODO:handle exception
-					}
-				}
+				String strImage = calculateImageHeighBased(ndlImage, maxPictureHeigh, elCurrent);
 				if (strImage != null) {
 					analyse.addImageURL(strImage);
 
@@ -112,6 +104,23 @@ public class URLFetcher {
 			}
 
 		}
+	}
+
+	private static String calculateImageHeighBased(NodeList ndlImage, int maxPictureHeigh, Element elCurrent) {
+		String strImage = elCurrent.getAttribute("src");
+		if (ndlImage.getLength() > 20 && elCurrent.hasAttribute("height")) {
+			String strHeight = elCurrent.getAttribute("height");
+			strHeight = strHeight.replace("px", "");
+			try {
+				int nHeight = Integer.parseInt(strHeight);
+				if (nHeight > maxPictureHeigh) {
+					strImage = null;
+				}
+			} catch (Exception e) {
+				// TODO:handle exception
+			}
+		}
+		return strImage;
 	}
 
 	public static void checkTitle(PageAnalyse analyse, NodeList ndlTitle) {
@@ -124,11 +133,9 @@ public class URLFetcher {
 		if ("".equals(analyse.getDescription())) {
 			for (int nCounter = 0; nCounter < ndlMet.getLength(); nCounter++) {
 				Element elCurrent = (Element) ndlMet.item(nCounter);
-				if ("description".equalsIgnoreCase(elCurrent.getAttribute("name"))) {
-					if (elCurrent.hasAttribute("content")) {
-						analyse.setDescription(elCurrent.getAttribute("content"));
-						nCounter = ndlMet.getLength();
-					}
+				if ("description".equalsIgnoreCase(elCurrent.getAttribute("name")) && elCurrent.hasAttribute("content")) {
+					analyse.setDescription(elCurrent.getAttribute("content"));
+					break;
 				}
 			}
 		}
@@ -156,5 +163,4 @@ public class URLFetcher {
 			}
 		}
 	}
-
 }

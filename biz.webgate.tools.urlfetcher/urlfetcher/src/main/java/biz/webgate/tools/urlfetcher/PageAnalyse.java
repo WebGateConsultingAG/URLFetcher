@@ -19,13 +19,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class PageAnalyse {
 
 	private final String url;
 	private final String documentBase;
-	private final HashMap<String, String> openGraph = new HashMap<String, String>();
+	private final Map<String, String> openGraph = new HashMap<String, String>();
 	private String title;
 	private String description;
 	private final Set<String> images = new HashSet<String>();
@@ -63,7 +64,7 @@ public class PageAnalyse {
 		return documentBase;
 	}
 
-	public HashMap<String, String> getOpenGraph() {
+	public Map<String, String> getOpenGraph() {
 		return openGraph;
 	}
 

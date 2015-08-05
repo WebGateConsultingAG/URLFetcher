@@ -18,13 +18,9 @@ package biz.webgate.tools.urlfetcher;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 import org.junit.Test;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
 
 public class PageAnalyseTest {
 
@@ -58,7 +54,7 @@ public class PageAnalyseTest {
 		assertEquals(9, analyse.getOpenGraph().size());
 	}
 
-	public PageAnalyse analyseFile() throws SAXNotRecognizedException, SAXNotSupportedException, SAXException, IOException {
+	public PageAnalyse analyseFile() throws Exception {
 		InputStream is = getURLforTestFile("guedebyte.wordpress.com.htm");
 		PageAnalyse analyse = new PageAnalyse("testURL");
 		URLFetcher.parseContent(200, analyse, is);
